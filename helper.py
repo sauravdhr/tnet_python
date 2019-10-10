@@ -10,20 +10,25 @@ easy_colors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
 
 def calculate_score(left, right):
 	result = []
+	state = []
 	for i in range(len(left)):
+		temp = []
         # Find min-cost change from node on the left
 		temp_left = left.copy()
 		temp_left[i] -= 1
 		min_left = min(temp_left)
+		temp.append(hosts[temp_left.index(min_left)])
 
 		# Find min-cost change from node on the right
 		temp_right = right.copy()
 		temp_right[i] -= 1
 		min_right = min(temp_right)
+		temp.append(hosts[temp_right.index(min_right)])
 
 		result.append(min_left + min_right + 2)
+		state.append(temp)
 
-	return result
+	return result, state
 
 
 def calculate_child_state(current, left, right):
@@ -42,7 +47,7 @@ def calculate_child_state(current, left, right):
 	return result
 
 
-rooted_tree = Phylo.read('test/RAxML_rootedTree.2', 'newick')
+rooted_tree = Phylo.read('test/RAxML_rootedTree.9', 'newick')
 
 rooted_tree.rooted = True
 print(rooted_tree.is_bifurcating())
@@ -50,6 +55,7 @@ print(rooted_tree.is_bifurcating())
 
 
 score = {}
+solution_count = {}
 child_state = {}
 hosts = []
 colors = []
@@ -80,34 +86,43 @@ for host in hosts:
 
 for terminal in rooted_tree.get_terminals():
 	temp = []
+	count = []
 	for host in hosts:
 		if host==terminal.name:
 			temp.append(0)
+			count.append(1)
 		else:
 			temp.append(9999999999)
+			count.append(0)
 
 	score[terminal] = temp
-	# print(terminal)
+	solution_count[terminal] = count
+	# print(score[terminal], solution_count[terminal])
 
 all_clades_size = len(rooted_tree.get_terminals()) + len(rooted_tree.get_nonterminals())
+print('All clades: ', all_clades_size)
 
 for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
 	# print('Calculating :',score[nonterminal.clades[0]], score[nonterminal.clades[1]])
-	score[nonterminal] = calculate_score(score[nonterminal.clades[0]], score[nonterminal.clades[1]])
-	child_state[nonterminal] = calculate_child_state(score[nonterminal], score[nonterminal.clades[0]], score[nonterminal.clades[1]])
-	print(child_state[nonterminal])
+	score[nonterminal], child_state[nonterminal] = calculate_score(score[nonterminal.clades[0]], score[nonterminal.clades[1]])
+	# child_state[nonterminal] = calculate_child_state(score[nonterminal], score[nonterminal.clades[0]], score[nonterminal.clades[1]])
+	# print(child_state[nonterminal])
 	# print('After calcu :',score[nonterminal.clades[0]], score[nonterminal.clades[1]])
 
 # Set the name of internal clades from score
 rooted_tree.root.name = hosts[score[rooted_tree.root].index(min(score[rooted_tree.root]))]
 rooted_tree.root.color = colors[hosts.index(rooted_tree.root.name)]
+
 for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
+	# print(score[nonterminal], child_state[nonterminal])
+	states = child_state[nonterminal][hosts.index(nonterminal.name)]
+	# print(states)
 	if not nonterminal.clades[0].is_terminal():
-		nonterminal.clades[0].name = child_state[nonterminal][0]
+		nonterminal.clades[0].name = states[0]
 		nonterminal.clades[0].color = colors[hosts.index(nonterminal.clades[0].name)]
 
 	if not nonterminal.clades[1].is_terminal():
-		nonterminal.clades[1].name = child_state[nonterminal][1]
+		nonterminal.clades[1].name = states[1]
 		nonterminal.clades[1].color = colors[hosts.index(nonterminal.clades[1].name)]
 	
 
@@ -115,18 +130,16 @@ for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
 # Get the transmission edges from the lebeled tree
 for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
 	if nonterminal.name != nonterminal.clades[0].name:
-		print(score[nonterminal], score[nonterminal.clades[0]])
-		print(nonterminal.name, nonterminal.clades[0].name)
+		# print(score[nonterminal], score[nonterminal.clades[0]])
+		# print(nonterminal.name, nonterminal.clades[0].name)
 		transmission_edges.append([nonterminal.name, nonterminal.clades[0].name])
 	if nonterminal.name != nonterminal.clades[1].name:
+		# print(score[nonterminal], score[nonterminal.clades[1]])
+		# print(nonterminal.name, nonterminal.clades[1].name)
 		transmission_edges.append([nonterminal.name, nonterminal.clades[1].name])
-		print(score[nonterminal], score[nonterminal.clades[1]])
-		print(nonterminal.name, nonterminal.clades[1].name)
 
 
 print('Transmission count:', len(transmission_edges), transmission_edges)
-print('All clades: ', all_clades_size)
-# print(all_clades)
 
 
 print('Root: ', score[rooted_tree.root])
