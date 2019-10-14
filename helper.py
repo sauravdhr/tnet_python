@@ -7,47 +7,51 @@ import random
 
 easy_colors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000']
 
+def chose_state(score, count):
+	print('Score', score)
+	print('Count', count)
+	
 
-def calculate_score(left, right):
+def calculate_score(left, right, l_count, r_count):
 	result = []
 	state = []
+	count = []
 	for i in range(len(left)):
-		temp = []
+		temp_state = []
         # Find min-cost change from node on the left
 		temp_left = left.copy()
 		temp_left[i] -= 1
 		min_left = min(temp_left)
-		temp.append(hosts[temp_left.index(min_left)])
+		temp_state.append(hosts[temp_left.index(min_left)])
+		left_count = 0
+		for j in range(len(left)):
+			if temp_left[j] == min_left:
+				left_count += l_count[j]
 
 		# Find min-cost change from node on the right
 		temp_right = right.copy()
 		temp_right[i] -= 1
 		min_right = min(temp_right)
-		temp.append(hosts[temp_right.index(min_right)])
+		temp_state.append(hosts[temp_right.index(min_right)])
+		right_count = 0
+		for j in range(len(left)):
+			if temp_right[j] == min_right:
+				right_count += r_count[j]
 
 		result.append(min_left + min_right + 2)
-		state.append(temp)
+		# print('for ',i,'->',min_left,min_right)
+		state.append(temp_state)
+		count.append(left_count * right_count)
 
-	return result, state
-
-
-def calculate_child_state(current, left, right):
-	result = []
-	index = current.index(min(current))
-	temp_left = left.copy()
-	temp_left[index] -= 1
-	min_left = min(temp_left)
-	result.append(hosts[temp_left.index(min_left)])
-
-	temp_right = right.copy()
-	temp_right[index] -= 1
-	min_right = min(temp_right)
-	result.append(hosts[temp_right.index(min_right)])
-
-	return result
+	print('Before score :', left, right)
+	print('After score :', result)
+	print('Before count :', l_count, r_count)
+	print('After count :', count)
+	return result, state, count
 
 
-rooted_tree = Phylo.read('test/RAxML_rootedTree.9', 'newick')
+
+rooted_tree = Phylo.read('test/RAxML_rootedTree.0', 'newick')
 
 rooted_tree.rooted = True
 print(rooted_tree.is_bifurcating())
@@ -103,13 +107,12 @@ all_clades_size = len(rooted_tree.get_terminals()) + len(rooted_tree.get_nonterm
 print('All clades: ', all_clades_size)
 
 for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
-	# print('Calculating :',score[nonterminal.clades[0]], score[nonterminal.clades[1]])
-	score[nonterminal], child_state[nonterminal] = calculate_score(score[nonterminal.clades[0]], score[nonterminal.clades[1]])
-	# child_state[nonterminal] = calculate_child_state(score[nonterminal], score[nonterminal.clades[0]], score[nonterminal.clades[1]])
-	# print(child_state[nonterminal])
-	# print('After calcu :',score[nonterminal.clades[0]], score[nonterminal.clades[1]])
+	score[nonterminal], child_state[nonterminal], solution_count[nonterminal] = calculate_score(
+							score[nonterminal.clades[0]], score[nonterminal.clades[1]], 
+							solution_count[nonterminal.clades[0]], solution_count[nonterminal.clades[1]])
+	
 
-# Set the name of internal clades from score
+# Set the name of internal clades from score, child_state and solution_count
 rooted_tree.root.name = hosts[score[rooted_tree.root].index(min(score[rooted_tree.root]))]
 rooted_tree.root.color = colors[hosts.index(rooted_tree.root.name)]
 
@@ -142,7 +145,7 @@ for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
 print('Transmission count:', len(transmission_edges), transmission_edges)
 
 
-print('Root: ', score[rooted_tree.root])
+print('Root: ', score[rooted_tree.root], solution_count[rooted_tree.root])
 print('The minimum parsimony cost is:', min(score[rooted_tree.root]), 'with root:', rooted_tree.root.name)
 # rooted_tree.ladderize()
 # Phylo.draw(rooted_tree)
