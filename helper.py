@@ -10,7 +10,7 @@ easy_colors = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4',
 def chose_state(score, count):
 	print('Score', score)
 	print('Count', count)
-	
+
 
 def calculate_score(left, right, l_count, r_count):
 	result = []
@@ -51,7 +51,48 @@ def calculate_score(left, right, l_count, r_count):
 
 
 
-rooted_tree = Phylo.read('test/RAxML_rootedTree.0', 'newick')
+def update_nonterminal(node):
+	left_score = score[node.clades[0]].copy()
+	right_score = score[node.clades[1]].copy()
+	length = len(left_score)
+	temp_score = []
+	left_state = []
+	right_state = []
+	count = []
+
+	for i in range(length):
+		left_score[i] -= 1
+		right_score[i] -= 1
+
+		temp_state = []
+		left_count = 0
+		min_left = min(left_score)
+		for j in range(length):
+			if left_score[j] == min_left:
+				temp_state.append(j)
+				left_count += l_count[j]
+		left_state.append(temp_state.copy())
+
+		temp_state = []
+		right_count = 0
+		min_right = min(right_score)
+		for j in range(length):
+			if right_score[j] == min_right:
+				temp_state.append(j)
+				right_count += r_count[j]
+		right_state.append(temp_state.copy())
+
+		temp_score.append(min_left + min_right + 2)
+		# print(temp_score)
+		left_score[i] += 1
+		right_score[i] += 1
+
+	score[node] = temp_score
+	left_children_state[node] = left_state
+	right_children_state[node] = right_state
+
+
+rooted_tree = Phylo.read('test/RAxML_rootedTree.7', 'newick')
 
 rooted_tree.rooted = True
 print(rooted_tree.is_bifurcating())
@@ -59,13 +100,16 @@ print(rooted_tree.is_bifurcating())
 
 
 score = {}
-solution_count = {}
-child_state = {}
+leaf_count = {}
+left_solution_count = {}
+right_solution_count = {}
+left_children_state = {}
+right_children_state = {}
 hosts = []
 colors = []
 all_clades = []
 transmission_edges = []
-r = lambda: random.randint(0,255)
+# r = lambda: random.randint(0,255)
 
 print('Terminals: ', len(rooted_tree.get_terminals()))
 print('Nonterminals: ', len(rooted_tree.get_nonterminals()))
@@ -82,9 +126,9 @@ hosts = list(set(hosts))
 print(hosts)
 print('Total hosts: ', len(hosts))
 
-for host in hosts:
-	color = '#%02X%02X%02X' % (r(),r(),r())
-	colors.append(color)
+# for host in hosts:
+# 	color = '#%02X%02X%02X' % (r(),r(),r())
+# 	colors.append(color)
 
 # print('Colors: ', colors)
 
@@ -100,33 +144,37 @@ for terminal in rooted_tree.get_terminals():
 			count.append(0)
 
 	score[terminal] = temp
-	solution_count[terminal] = count
+	leaf_count[terminal] = count
 	# print(score[terminal], solution_count[terminal])
 
 all_clades_size = len(rooted_tree.get_terminals()) + len(rooted_tree.get_nonterminals())
 print('All clades: ', all_clades_size)
 
 for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
-	score[nonterminal], child_state[nonterminal], solution_count[nonterminal] = calculate_score(
-							score[nonterminal.clades[0]], score[nonterminal.clades[1]], 
-							solution_count[nonterminal.clades[0]], solution_count[nonterminal.clades[1]])
+	update_nonterminal(nonterminal)
+	# score[nonterminal], child_state[nonterminal], solution_count[nonterminal] = calculate_score(
+	# 						score[nonterminal.clades[0]], score[nonterminal.clades[1]], 
+	# 						solution_count[nonterminal.clades[0]], solution_count[nonterminal.clades[1]])
 	
 
 # Set the name of internal clades from score, child_state and solution_count
 rooted_tree.root.name = hosts[score[rooted_tree.root].index(min(score[rooted_tree.root]))]
-rooted_tree.root.color = colors[hosts.index(rooted_tree.root.name)]
+# rooted_tree.root.color = colors[hosts.index(rooted_tree.root.name)]
 
 for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
 	# print(score[nonterminal], child_state[nonterminal])
-	states = child_state[nonterminal][hosts.index(nonterminal.name)]
+	left_states = left_children_state[nonterminal][hosts.index(nonterminal.name)]
+	right_states = right_children_state[nonterminal][hosts.index(nonterminal.name)]
 	# print(states)
 	if not nonterminal.clades[0].is_terminal():
-		nonterminal.clades[0].name = states[0]
-		nonterminal.clades[0].color = colors[hosts.index(nonterminal.clades[0].name)]
+		nonterminal.clades[0].name = hosts[left_states[0]]
+		print('Left choices', left_states)
+		# nonterminal.clades[0].color = colors[hosts.index(nonterminal.clades[0].name)]
 
 	if not nonterminal.clades[1].is_terminal():
-		nonterminal.clades[1].name = states[1]
-		nonterminal.clades[1].color = colors[hosts.index(nonterminal.clades[1].name)]
+		nonterminal.clades[1].name = hosts[right_states[0]]
+		print('Right choices', right_states)
+		# nonterminal.clades[1].color = colors[hosts.index(nonterminal.clades[1].name)]
 	
 
 
@@ -145,7 +193,7 @@ for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
 print('Transmission count:', len(transmission_edges), transmission_edges)
 
 
-print('Root: ', score[rooted_tree.root], solution_count[rooted_tree.root])
+print('Root: ', score[rooted_tree.root])
 print('The minimum parsimony cost is:', min(score[rooted_tree.root]), 'with root:', rooted_tree.root.name)
 # rooted_tree.ladderize()
 # Phylo.draw(rooted_tree)
