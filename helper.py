@@ -54,6 +54,9 @@ def calculate_score(left, right, l_count, r_count):
 def update_nonterminal(node):
 	left_score = score[node.clades[0]].copy()
 	right_score = score[node.clades[1]].copy()
+	l_count = solution_count[node.clades[0]].copy()
+	r_count = solution_count[node.clades[1]].copy()
+
 	length = len(left_score)
 	temp_score = []
 	left_state = []
@@ -83,6 +86,7 @@ def update_nonterminal(node):
 		right_state.append(temp_state.copy())
 
 		temp_score.append(min_left + min_right + 2)
+		count.append(left_count * right_count)
 		# print(temp_score)
 		left_score[i] += 1
 		right_score[i] += 1
@@ -101,10 +105,10 @@ print(rooted_tree.is_bifurcating())
 
 score = {}
 leaf_count = {}
-left_solution_count = {}
-right_solution_count = {}
+solution_count = {}
 left_children_state = {}
 right_children_state = {}
+child_state = {}
 hosts = []
 colors = []
 all_clades = []
@@ -144,36 +148,49 @@ for terminal in rooted_tree.get_terminals():
 			count.append(0)
 
 	score[terminal] = temp
-	leaf_count[terminal] = count
+	solution_count[terminal] = count
 	# print(score[terminal], solution_count[terminal])
 
 all_clades_size = len(rooted_tree.get_terminals()) + len(rooted_tree.get_nonterminals())
 print('All clades: ', all_clades_size)
 
 for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
-	update_nonterminal(nonterminal)
-	# score[nonterminal], child_state[nonterminal], solution_count[nonterminal] = calculate_score(
-	# 						score[nonterminal.clades[0]], score[nonterminal.clades[1]], 
-	# 						solution_count[nonterminal.clades[0]], solution_count[nonterminal.clades[1]])
+	# update_nonterminal(nonterminal)
+	score[nonterminal], child_state[nonterminal], solution_count[nonterminal] = calculate_score(
+							score[nonterminal.clades[0]], score[nonterminal.clades[1]], 
+							solution_count[nonterminal.clades[0]], solution_count[nonterminal.clades[1]])
 	
 
+def set_root_name(root_score, root_count):
+	s_min = min(root_score)
+	prob = []
+	for i in range(len(root_score)):
+		if root_score[i] == s_min:
+			prob = root_count[i]
+		else:
+			prob = 0
+
+	print('Prob:', prob)
+
+
 # Set the name of internal clades from score, child_state and solution_count
-rooted_tree.root.name = hosts[score[rooted_tree.root].index(min(score[rooted_tree.root]))]
+# rooted_tree.root.name = hosts[score[rooted_tree.root].index(min(score[rooted_tree.root]))]
+rooted_tree.root.name = set_root_name(score[rooted_tree.root], solution_count[rooted_tree.root])
 # rooted_tree.root.color = colors[hosts.index(rooted_tree.root.name)]
 
 for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
-	# print(score[nonterminal], child_state[nonterminal])
-	left_states = left_children_state[nonterminal][hosts.index(nonterminal.name)]
-	right_states = right_children_state[nonterminal][hosts.index(nonterminal.name)]
+	print(score[nonterminal], child_state[nonterminal])
+	# left_states = left_children_state[nonterminal][hosts.index(nonterminal.name)]
+	# right_states = right_children_state[nonterminal][hosts.index(nonterminal.name)]
 	# print(states)
-	if not nonterminal.clades[0].is_terminal():
-		nonterminal.clades[0].name = hosts[left_states[0]]
-		print('Left choices', left_states)
-		# nonterminal.clades[0].color = colors[hosts.index(nonterminal.clades[0].name)]
+	# if not nonterminal.clades[0].is_terminal():
+	# 	# nonterminal.clades[0].name = hosts[left_states[0]]
+	# 	# print('Left choices', left_states)
+	# 	# nonterminal.clades[0].color = colors[hosts.index(nonterminal.clades[0].name)]
 
-	if not nonterminal.clades[1].is_terminal():
-		nonterminal.clades[1].name = hosts[right_states[0]]
-		print('Right choices', right_states)
+	# if not nonterminal.clades[1].is_terminal():
+	# 	nonterminal.clades[1].name = hosts[right_states[0]]
+	# 	print('Right choices', right_states)
 		# nonterminal.clades[1].color = colors[hosts.index(nonterminal.clades[1].name)]
 	
 
