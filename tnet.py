@@ -9,6 +9,8 @@ import sys, os
 
 # Global variables
 score = {}
+left_score = {}
+right_score = {}
 solution_count = {}
 hosts = []
 transmission_edges = []
@@ -58,6 +60,8 @@ def initialize_score_count(node):
 
 	length = len(l_score)
 	temp_score = []
+	temp_left = []
+	temp_right = []
 	temp_count = []
 
 	for i in range(length):
@@ -76,17 +80,22 @@ def initialize_score_count(node):
 				right_count += r_count[j]
 
 		temp_score.append(min_left + min_right + 2)
+		temp_left.append(min_left)
+		temp_right.append(min_right)
 		temp_count.append(left_count * right_count)
 		l_score[i] += 1
 		r_score[i] += 1
 
 	score[node] = temp_score
+	left_score[node] = temp_left
+	right_score[node] = temp_right
 	solution_count[node] = temp_count
 
-	print('Before score :', l_score, r_score)
-	print('After score :', temp_score)
-	print('Before count :', l_count, r_count)
-	print('After count :', temp_count)
+	# print('Before score :', l_score, r_score)
+	# print('Left:', temp_left, 'Right:', temp_right)
+	# print('After score :', temp_score)
+	# print('Before count :', l_count, r_count)
+	# print('After count :', temp_count)
 
 def initialize_internal_nodes(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
@@ -110,27 +119,48 @@ def choose_root_host(root_node):
 
 def choose_internal_node_host(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
-		print(score[nonterminal], solution_count[nonterminal])
-		print(nonterminal.name)
+		# print(score[nonterminal], solution_count[nonterminal])
+		# print(nonterminal.name)
 		index = hosts.index(nonterminal.name)
-		min_score = score[root_node][index]
 
 		if not nonterminal.clades[0].is_terminal():
 			l_score = score[nonterminal.clades[0]].copy()
 			l_count = solution_count[nonterminal.clades[0]].copy()
 			l_score[index] -= 1
 			for i in range(len(l_score)):
-				if l_score[i] != min_score - 1:
+				if l_score[i] != left_score[nonterminal][index]:
 					l_count[i] = 0
 
 			nonterminal.clades[0].name = get_host_from_count(l_count)
 
 		if not nonterminal.clades[1].is_terminal():
-			r_score = score[node.clades[1]].copy()
-			r_count = solution_count[node.clades[1]].copy()
+			r_score = score[nonterminal.clades[1]].copy()
+			r_count = solution_count[nonterminal.clades[1]].copy()
+			r_score[index] -= 1
+			for i in range(len(r_score)):
+				if r_score[i] != right_score[nonterminal][index]:
+					r_count[i] = 0
+
+			nonterminal.clades[1].name = get_host_from_count(r_count)
 
 
+def get_transmission_edges(rooted_tree):
+	edges = []
+	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
+		if nonterminal.name != nonterminal.clades[0].name:
+			edges.append([nonterminal.name, nonterminal.clades[0].name])
+		if nonterminal.name != nonterminal.clades[1].name:
+			edges.append([nonterminal.name, nonterminal.clades[1].name])
 
+	return edges
+
+def write_transmission_edges(file, source, edges):
+	result = open(file, 'w+')
+	result.write('{}\t{}\n'.format('None', source))
+	for edge in edges:
+		result.write('{}\t{}\n'.format(edge[0], edge[1]))
+
+	result.close()
 
 def main():
 	if len(sys.argv) == 3:
@@ -138,7 +168,7 @@ def main():
 		OUTPUT_FILE = os.path.abspath(sys.argv[2])
 		# raise IndexError("Usage: python3 tnet.py [input phylogeny file] [desired output file]")
 	else:
-		INPUT_TREE_FILE = 'test/RAxML_rootedTree.3'
+		INPUT_TREE_FILE = 'test/RAxML_rootedTree.big1'
 		OUTPUT_FILE = 'output.tnet'
 
 	input_tree = initialize_tree(INPUT_TREE_FILE)
@@ -146,7 +176,11 @@ def main():
 	initialize_internal_nodes(input_tree)
 	input_tree.root.name = choose_root_host(input_tree.root)
 	choose_internal_node_host(input_tree)
-	# print(input_tree)
+	transmission_edges = get_transmission_edges(input_tree)
+	write_transmission_edges(OUTPUT_FILE, input_tree.root.name, transmission_edges)
+
+	print('Transmission count:', len(transmission_edges), transmission_edges)
+	print('The minimum parsimony cost is:', min(score[input_tree.root]), 'with root:', input_tree.root.name)
 	
 
 
