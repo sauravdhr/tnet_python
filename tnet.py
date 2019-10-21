@@ -4,6 +4,7 @@
 
 # Library imports
 from Bio import Phylo
+import numpy as np
 import sys, os
 
 # Global variables
@@ -31,6 +32,7 @@ def initialize_leaf_nodes(rooted_tree):
 		terminal.name = terminal.name.split('_')[0]
 		temp_host.append(terminal.name)
 
+	global hosts
 	hosts = list(set(temp_host))
 	print('Total hosts: ', len(hosts))
 
@@ -90,6 +92,44 @@ def initialize_internal_nodes(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
 		initialize_score_count(nonterminal)
 
+def get_host_from_count(count):
+	probs = [float(i)/sum(count) for i in count]
+	ch = np.random.choice(len(probs), p=probs)
+	return hosts[ch]
+
+def choose_root_host(root_node):
+	probs = []
+	min_score = min(score[root_node])
+	for i in range(len(score[root_node])):
+		if score[root_node][i]==min_score:
+			probs.append(solution_count[root_node][i])
+		else:
+			probs.append(0)
+
+	return get_host_from_count(probs)
+
+def choose_internal_node_host(rooted_tree):
+	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
+		print(score[nonterminal], solution_count[nonterminal])
+		print(nonterminal.name)
+		index = hosts.index(nonterminal.name)
+		min_score = score[root_node][index]
+
+		if not nonterminal.clades[0].is_terminal():
+			l_score = score[nonterminal.clades[0]].copy()
+			l_count = solution_count[nonterminal.clades[0]].copy()
+			l_score[index] -= 1
+			for i in range(len(l_score)):
+				if l_score[i] != min_score - 1:
+					l_count[i] = 0
+
+			nonterminal.clades[0].name = get_host_from_count(l_count)
+
+		if not nonterminal.clades[1].is_terminal():
+			r_score = score[node.clades[1]].copy()
+			r_count = solution_count[node.clades[1]].copy()
+
+
 
 
 def main():
@@ -98,12 +138,16 @@ def main():
 		OUTPUT_FILE = os.path.abspath(sys.argv[2])
 		# raise IndexError("Usage: python3 tnet.py [input phylogeny file] [desired output file]")
 	else:
-		INPUT_TREE_FILE = 'test/RAxML_rootedTree.4'
+		INPUT_TREE_FILE = 'test/RAxML_rootedTree.3'
 		OUTPUT_FILE = 'output.tnet'
 
 	input_tree = initialize_tree(INPUT_TREE_FILE)
 	initialize_leaf_nodes(input_tree)
 	initialize_internal_nodes(input_tree)
+	input_tree.root.name = choose_root_host(input_tree.root)
+	choose_internal_node_host(input_tree)
+	# print(input_tree)
+	
 
 
 
