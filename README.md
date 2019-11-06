@@ -1,6 +1,8 @@
 # TNet
 TNet: Phylogeny-Based Inference of Disease Transmission Networks UsingWithin-Host Strain Diversity
 
+Tnet is freely available under the GNU General Public License version 3. See the [description](LICENSE).
+
 Input: TNet takes a rooted phylogeny as input. The file should be in [Newick](https://en.wikipedia.org/wiki/Newick_format) format. To get the phylogeny from mapped reads we used [RAxML](https://cme.h-its.org/exelixis/web/software/raxml/index.html). We used RAxML Version 8 for the current analysis. The phylogeny has to be rooted. We used [RAxML](https://cme.h-its.org/exelixis/web/software/raxml/index.html) again for rooting the phylogeny. Also make sure the input tree is bifurcating. The name format for the leaves is `<hostID>_<sequenceID>`. Only `<hostID>` will be used in the tool for computation and the output will be based on the `<hostID>` too.
 
 Output: The output file is a file specified by the user. Each line of the output file is an edge in the transmission network. The edge format is `<hostID> <hostID>` separated by a tab. The first line contains the source of the outbreak in `None <hostID>` format. TNet also outputs the minimum parsimony cost of the phylogeny.
