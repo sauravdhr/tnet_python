@@ -21,8 +21,8 @@ transmission_edges = []
 def initialize_tree(input_file):
 	input_tree = Phylo.read(input_file, 'newick')
 	input_tree.rooted = True
-	print('Terminals:', len(input_tree.get_terminals()))
-	print('Nonterminals:', len(input_tree.get_nonterminals()))
+	# print('Terminals:', len(input_tree.get_terminals()))
+	# print('Nonterminals:', len(input_tree.get_nonterminals()))
 	if not input_tree.is_bifurcating():
 		raise IndexError("Input tree is not bifurcating.")
 	# Phylo.draw_ascii(rooted_tree)
@@ -36,7 +36,8 @@ def initialize_leaf_nodes(rooted_tree):
 
 	global hosts
 	hosts = list(set(temp_host))
-	print('Total hosts: ', len(hosts))
+	hosts.sort()
+	# print('Total hosts: ', len(hosts), hosts)
 
 	for terminal in rooted_tree.get_terminals():
 		temp = []
@@ -96,6 +97,7 @@ def initialize_score_count(node):
 	# print('After score :', temp_score)
 	# print('Before count :', l_count, r_count)
 	# print('After count :', temp_count)
+	# print('=========================')
 
 def initialize_internal_nodes(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
@@ -115,12 +117,14 @@ def choose_root_host(root_node):
 		else:
 			probs.append(0)
 
+	# print('Root', probs)
+	# print('Root score', score[root_node])
 	return get_host_from_count(probs)
 
 def choose_internal_node_host(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
-		# print(score[nonterminal], solution_count[nonterminal])
-		# print(nonterminal.name)
+		# print(score[nonterminal])
+		# print(solution_count[nonterminal])
 		index = hosts.index(nonterminal.name)
 
 		if not nonterminal.clades[0].is_terminal():
@@ -166,10 +170,8 @@ def main():
 	if len(sys.argv) == 3:
 		INPUT_TREE_FILE = os.path.abspath(sys.argv[1])
 		OUTPUT_FILE = os.path.abspath(sys.argv[2])
-		# raise IndexError("Usage: python3 tnet.py [input phylogeny file] [desired output file]")
 	else:
-		INPUT_TREE_FILE = 'test/RAxML_rootedTree.big1'
-		OUTPUT_FILE = 'output.tnet'
+		raise IndexError("Usage: python3 tnet.py [input phylogeny file] [desired output file]")
 
 	input_tree = initialize_tree(INPUT_TREE_FILE)
 	initialize_leaf_nodes(input_tree)
@@ -179,10 +181,7 @@ def main():
 	transmission_edges = get_transmission_edges(input_tree)
 	write_transmission_edges(OUTPUT_FILE, input_tree.root.name, transmission_edges)
 
-	print('Transmission count:', len(transmission_edges), transmission_edges)
+	# print('Transmission count:', len(transmission_edges), transmission_edges)
 	print('The minimum parsimony cost is:', min(score[input_tree.root]), 'with root:', input_tree.root.name)
-	
-
-
 
 if __name__ == "__main__": main()
