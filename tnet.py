@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from Bio import Phylo
 import numpy as np
 import sys, os
+import argparse
 
 # Global variables
 score = {}
@@ -30,30 +31,29 @@ right_score = {}
 solution_count = {}
 hosts = []
 transmission_edges = []
-
-
+rand_seed = None
+flag_max_prob = None
+flag_equal_prob = None
 
 
 def initialize_tree(input_file):
 	input_tree = Phylo.read(input_file, 'newick')
 	input_tree.rooted = True
-	# print('Terminals:', len(input_tree.get_terminals()))
-	# print('Nonterminals:', len(input_tree.get_nonterminals()))
+
 	if not input_tree.is_bifurcating():
 		raise IndexError("Input tree is not bifurcating.")
-	# Phylo.draw_ascii(rooted_tree)
+
 	return input_tree
 
 def initialize_leaf_nodes(rooted_tree):
 	temp_host = []
 	for terminal in rooted_tree.get_terminals():
 		terminal.name = terminal.name.split('_')[0]
-		temp_host.append(terminal.name)
+		if terminal.name not in temp_host:
+			temp_host.append(terminal.name)
 
 	global hosts
-	hosts = list(set(temp_host))
-	hosts.sort()
-	# print('Total hosts: ', len(hosts), hosts)
+	hosts = temp_host.copy()
 
 	for terminal in rooted_tree.get_terminals():
 		temp = []
@@ -108,19 +108,23 @@ def initialize_score_count(node):
 	right_score[node] = temp_right
 	solution_count[node] = temp_count
 
-	# print('Before score :', l_score, r_score)
-	# print('Left:', temp_left, 'Right:', temp_right)
-	# print('After score :', temp_score)
-	# print('Before count :', l_count, r_count)
-	# print('After count :', temp_count)
-	# print('=========================')
-
 def initialize_internal_nodes(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'postorder'):
 		initialize_score_count(nonterminal)
 
 def get_host_from_count(count):
+	if flag_equal_prob:
+		for i in range(len(count)):
+			if count[i] != 0:
+				count[i] = 1
+	elif flag_max_prob:
+		max_count = max(count)
+		for i in range(len(count)):
+			if count[i] != max_count:
+				count[i] = 0
+
 	probs = [float(i)/sum(count) for i in count]
+	np.random.seed(rand_seed)
 	ch = np.random.choice(len(probs), p=probs)
 	return hosts[ch]
 
@@ -128,19 +132,15 @@ def choose_root_host(root_node):
 	probs = []
 	min_score = min(score[root_node])
 	for i in range(len(score[root_node])):
-		if score[root_node][i]==min_score:
+		if score[root_node][i] == min_score:
 			probs.append(solution_count[root_node][i])
 		else:
 			probs.append(0)
 
-	# print('Root', probs)
-	# print('Root score', score[root_node])
 	return get_host_from_count(probs)
 
 def choose_internal_node_host(rooted_tree):
 	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
-		# print(score[nonterminal])
-		# print(solution_count[nonterminal])
 		index = hosts.index(nonterminal.name)
 
 		if not nonterminal.clades[0].is_terminal():
@@ -163,6 +163,51 @@ def choose_internal_node_host(rooted_tree):
 
 			nonterminal.clades[1].name = get_host_from_count(r_count)
 
+def choose_internal_node_host_with_bias(rooted_tree):
+	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
+		index = hosts.index(nonterminal.name)
+
+		if not nonterminal.clades[0].is_terminal():
+			l_score = score[nonterminal.clades[0]].copy()
+			l_count = solution_count[nonterminal.clades[0]].copy()
+			if min(l_score) == l_score[index]:
+				nonterminal.clades[0].name = hosts[index]
+			elif min(l_score) + 1 == l_score[index]:
+				nonterminal.clades[0].name = hosts[index]
+			else:
+				countTotal = 0
+				for i in range(len(l_score)):
+					if l_score[i] == min(l_score):
+						countTotal += l_count[i]
+
+				r = np.random.randint(countTotal)
+				for i in range(len(l_score)):
+					if l_score[i] == min(l_score):
+						r -= l_count[i]
+						if r <= 0:
+							nonterminal.clades[0].name = hosts[i]
+							break
+
+		if not nonterminal.clades[1].is_terminal():
+			r_score = score[nonterminal.clades[1]].copy()
+			r_count = solution_count[nonterminal.clades[1]].copy()
+			if min(r_score) == r_score[index]:
+				nonterminal.clades[1].name = hosts[index]
+			elif min(r_score) + 1 == r_score[index]:
+				nonterminal.clades[1].name = hosts[index]
+			else:
+				countTotal = 0
+				for i in range(len(r_score)):
+					if r_score[i] == min(r_score):
+						countTotal += r_count[i]
+
+				r = np.random.randint(countTotal)
+				for i in range(len(r_score)):
+					if r_score[i] == min(r_score):
+						r -= r_count[i]
+						if r <= 0:
+							nonterminal.clades[1].name = hosts[i]
+							break
 
 def get_transmission_edges(rooted_tree):
 	edges = []
@@ -182,22 +227,59 @@ def write_transmission_edges(file, source, edges):
 
 	result.close()
 
-def main():
-	if len(sys.argv) == 3:
-		INPUT_TREE_FILE = os.path.abspath(sys.argv[1])
-		OUTPUT_FILE = os.path.abspath(sys.argv[2])
-	else:
-		raise IndexError("Usage: python3 tnet.py [input phylogeny file] [desired output file]")
+def write_info_file(file, rooted_tree):
+	result = open(file + '.info', 'w+')
+	result.write('Hosts list: {}\n'.format(hosts))
+	result.write('Root ID: {}\n'.format(rooted_tree.root.name))
+	result.write('The minimum parsimony cost: {}\n'.format(min(score[rooted_tree.root])))
+	result.write('Root score list: {}\n'.format(score[rooted_tree.root]))
+	result.write('Root assignment count list: {}\n'.format(solution_count[rooted_tree.root]))
 
-	input_tree = initialize_tree(INPUT_TREE_FILE)
+	result.write('\nChanges:\n')
+	edges = get_transmission_edges(rooted_tree)
+	for edge in edges:
+		result.write('{} -> {}\n'.format(edge[0], edge[1]))
+
+	result.write('\nNewick Format Tree:\n')
+	Phylo.write([rooted_tree], result, 'newick')
+	result.close()
+
+def read_parser_args(args):
+	global rand_seed
+	rand_seed = args.seed
+	global flag_max_prob
+	flag_max_prob = args.maxprob
+	global flag_equal_prob
+	flag_equal_prob = args.equalprob
+
+def main():
+	parser = argparse.ArgumentParser(description='Process TNet arguments.')
+	parser.add_argument('INPUT_TREE_FILE', action='store', type=str, help='input file name')
+	parser.add_argument('OUTPUT_FILE', action='store', type=str, help='output file name')
+	parser.add_argument('-sd', '--seed', default=None, type=int, help='random number generator seed')
+	parser.add_argument('-rs', '--randomsampling', default=False, action="store_true", help='choose internal node host with probability proportional to solutions')
+	parser.add_argument('-mx', '--maxprob', default=False, action="store_true", help='choose internal node host with max probability')
+	parser.add_argument('-eq', '--equalprob', default=False, action="store_true", help='choose internal node host with all equal probability')
+	parser.add_argument('-info', '--info', default=False, action="store_true", help='write info file')
+	parser.add_argument('--version', action='version', version='%(prog)s 1.1')
+	args = parser.parse_args()
+
+	read_parser_args(args)
+	input_tree = initialize_tree(args.INPUT_TREE_FILE)
 	initialize_leaf_nodes(input_tree)
 	initialize_internal_nodes(input_tree)
 	input_tree.root.name = choose_root_host(input_tree.root)
-	choose_internal_node_host(input_tree)
-	transmission_edges = get_transmission_edges(input_tree)
-	write_transmission_edges(OUTPUT_FILE, input_tree.root.name, transmission_edges)
+	if args.randomsampling:
+		choose_internal_node_host(input_tree)
+	else:
+		choose_internal_node_host_with_bias(input_tree)
 
-	# print('Transmission count:', len(transmission_edges), transmission_edges)
+	transmission_edges = get_transmission_edges(input_tree)
+	write_transmission_edges(args.OUTPUT_FILE, input_tree.root.name, transmission_edges)
+
+	if args.info:
+		write_info_file(args.OUTPUT_FILE, input_tree)
+
 	print('The minimum parsimony cost is:', min(score[input_tree.root]), 'with root:', input_tree.root.name)
 
 if __name__ == "__main__": main()
