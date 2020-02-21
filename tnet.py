@@ -33,7 +33,6 @@ hosts = []
 transmission_edges = []
 rand_seed = None
 flag_max_prob = None
-flag_equal_prob = None
 
 
 def initialize_tree(input_file):
@@ -113,11 +112,7 @@ def initialize_internal_nodes(rooted_tree):
 		initialize_score_count(nonterminal)
 
 def get_host_from_count(count):
-	if flag_equal_prob:
-		for i in range(len(count)):
-			if count[i] != 0:
-				count[i] = 1
-	elif flag_max_prob:
+	if flag_max_prob:
 		max_count = max(count)
 		for i in range(len(count)):
 			if count[i] != max_count:
@@ -249,18 +244,15 @@ def read_parser_args(args):
 	rand_seed = args.seed
 	global flag_max_prob
 	flag_max_prob = args.maxprob
-	global flag_equal_prob
-	flag_equal_prob = args.equalprob
 
 def main():
 	parser = argparse.ArgumentParser(description='Process TNet arguments.')
 	parser.add_argument('INPUT_TREE_FILE', action='store', type=str, help='input file name')
 	parser.add_argument('OUTPUT_FILE', action='store', type=str, help='output file name')
 	parser.add_argument('-sd', '--seed', default=None, type=int, help='random number generator seed')
-	parser.add_argument('-rs', '--randomsampling', default=False, action="store_true", help='choose internal node host with probability proportional to solutions')
-	parser.add_argument('-mx', '--maxprob', default=False, action="store_true", help='choose internal node host with max probability')
-	parser.add_argument('-eq', '--equalprob', default=False, action="store_true", help='choose internal node host with all equal probability')
-	parser.add_argument('-info', '--info', default=False, action="store_true", help='write info file')
+	parser.add_argument('-rs', '--randomsampling', default=False, action="store_true", help='sample optimal solutions uniformly at random')
+	parser.add_argument('-mx', '--maxprob', default=False, action="store_true", help='compute highest-probability solution')
+	parser.add_argument('-info', '--info', default=False, action="store_true", help='write information file')
 	parser.add_argument('--version', action='version', version='%(prog)s 1.1')
 	args = parser.parse_args()
 
