@@ -170,18 +170,12 @@ def choose_internal_node_host_with_bias(rooted_tree):
 			elif min(l_score) + 1 == l_score[index]:
 				nonterminal.clades[0].name = hosts[index]
 			else:
-				countTotal = 0
+				l_score[index] -= 1
 				for i in range(len(l_score)):
-					if l_score[i] == min(l_score):
-						countTotal += l_count[i]
+					if l_score[i] != left_score[nonterminal][index]:
+						l_count[i] = 0
 
-				r = np.random.randint(countTotal)
-				for i in range(len(l_score)):
-					if l_score[i] == min(l_score):
-						r -= l_count[i]
-						if r <= 0:
-							nonterminal.clades[0].name = hosts[i]
-							break
+				nonterminal.clades[0].name = get_host_from_count(l_count)
 
 		if not nonterminal.clades[1].is_terminal():
 			r_score = score[nonterminal.clades[1]].copy()
@@ -191,18 +185,12 @@ def choose_internal_node_host_with_bias(rooted_tree):
 			elif min(r_score) + 1 == r_score[index]:
 				nonterminal.clades[1].name = hosts[index]
 			else:
-				countTotal = 0
+				r_score[index] -= 1
 				for i in range(len(r_score)):
-					if r_score[i] == min(r_score):
-						countTotal += r_count[i]
+					if r_score[i] != right_score[nonterminal][index]:
+						r_count[i] = 0
 
-				r = np.random.randint(countTotal)
-				for i in range(len(r_score)):
-					if r_score[i] == min(r_score):
-						r -= r_count[i]
-						if r <= 0:
-							nonterminal.clades[1].name = hosts[i]
-							break
+				nonterminal.clades[1].name = get_host_from_count(r_count)
 
 def get_transmission_edges(rooted_tree):
 	edges = []
