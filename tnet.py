@@ -21,19 +21,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # Library imports
 from Bio import Phylo
 import numpy as np
-import sys, os
+import copy, sys, os
 import argparse
 
 # Global variables
+args = None
+hosts = []
 score = {}
 left_score = {}
 right_score = {}
 solution_count = {}
-hosts = []
 transmission_edges = []
-rand_seed = None
-flag_max_prob = None
-
 
 def initialize_tree(input_file):
 	input_tree = Phylo.read(input_file, 'newick')
@@ -112,15 +110,15 @@ def initialize_internal_nodes(rooted_tree):
 		initialize_score_count(nonterminal)
 
 def get_host_from_count(count):
-	if flag_max_prob:
+	if args.maxprob:
 		max_count = max(count)
 		for i in range(len(count)):
 			if count[i] != max_count:
 				count[i] = 0
 
 	probs = [float(i)/sum(count) for i in count]
-	np.random.seed(rand_seed)
-	ch = np.random.choice(len(probs), p=probs)
+	np.random.seed(args.seed)
+	ch = np.random.choice(len(probs), p = probs)
 	return hosts[ch]
 
 def choose_root_host(root_node):
@@ -192,6 +190,22 @@ def choose_internal_node_host_with_bias(rooted_tree):
 
 				nonterminal.clades[1].name = get_host_from_count(r_count)
 
+def get_labeled_trees(rooted_tree):
+	labeled_trees = []
+	sample_times = 1 if not args.times else args.times
+
+	for i in range(sample_times):
+		rooted_tree.root.name = choose_root_host(rooted_tree.root)
+
+		if args.randomsampling:
+			choose_internal_node_host(rooted_tree)
+		else:
+			choose_internal_node_host_with_bias(rooted_tree)
+
+		labeled_trees.append(copy.deepcopy(rooted_tree))
+
+	return labeled_trees
+
 def get_transmission_edges(rooted_tree):
 	edges = []
 	for nonterminal in rooted_tree.get_nonterminals(order = 'preorder'):
@@ -202,6 +216,22 @@ def get_transmission_edges(rooted_tree):
 
 	return edges
 
+def get_transmission_edge_count(labeled_trees):
+	edge_count = {}
+
+	for labeled_tree in labeled_trees:
+		temp_edges = get_transmission_edges(labeled_tree)
+		temp_edges = [spreader + '->' + receiver for spreader, receiver in temp_edges]
+		temp_edges = set(temp_edges)
+
+		for edge in temp_edges:
+			if edge in edge_count:
+				edge_count[edge] += 1
+			else:
+				edge_count[edge] = 1
+
+	return edge_count
+
 def write_transmission_edges(file, source, edges):
 	result = open(file, 'w+')
 	result.write('{}\t{}\n'.format('None', source))
@@ -210,56 +240,53 @@ def write_transmission_edges(file, source, edges):
 
 	result.close()
 
-def write_info_file(file, rooted_tree):
-	result = open(file + '.info', 'w+')
-	result.write('Hosts list: {}\n'.format(hosts))
-	result.write('Root ID: {}\n'.format(rooted_tree.root.name))
-	result.write('The minimum parsimony cost: {}\n'.format(min(score[rooted_tree.root])))
-	result.write('Root score list: {}\n'.format(score[rooted_tree.root]))
-	result.write('Root assignment count list: {}\n'.format(solution_count[rooted_tree.root]))
+def write_transmission_edges_summary(edge_count):
+	summary = open(args.OUTPUT_FILE, 'w+')
 
-	result.write('\nChanges:\n')
-	edges = get_transmission_edges(rooted_tree)
-	for edge in edges:
-		result.write('{} -> {}\n'.format(edge[0], edge[1]))
+	for edge, count in edge_count.items():
+		summary.write('{}\t{}\n'.format(edge, count))
 
-	result.write('\nNewick Format Tree:\n')
-	Phylo.write([rooted_tree], result, 'newick')
-	result.close()
+	summary.close()
 
-def read_parser_args(args):
-	global rand_seed
-	rand_seed = args.seed
-	global flag_max_prob
-	flag_max_prob = args.maxprob
+def parse_arguments():
+	parser = argparse.ArgumentParser(description = 'Process TNet arguments.')
+	parser.add_argument('INPUT_TREE_FILE', action = 'store', type = str, help = 'input file name')
+	parser.add_argument('OUTPUT_FILE', action = 'store', type = str, help = 'output file name')
+	parser.add_argument('-sd', '--seed', default = None, type = int, help = 'random number generator seed')
+	parser.add_argument('-rs', '--randomsampling', default = False, action = 'store_true', help = 'sample optimal solutions uniformly at random')
+	parser.add_argument('-t', '--times', default = None, type = int, help = 'sample TNet multiple times')
+	parser.add_argument('-mx', '--maxprob', default = False, action = 'store_true', help = 'compute highest-probability solution')
+	parser.add_argument('-lt', '--labeledtrees', default = False, action = 'store_true', help = 'write labeled trees in Newick format')
+	parser.add_argument('-v', '--version', action = 'version', version = 'You are using %(prog)s 1.2')
+	return parser.parse_args()
 
 def main():
-	parser = argparse.ArgumentParser(description='Process TNet arguments.')
-	parser.add_argument('INPUT_TREE_FILE', action='store', type=str, help='input file name')
-	parser.add_argument('OUTPUT_FILE', action='store', type=str, help='output file name')
-	parser.add_argument('-sd', '--seed', default=None, type=int, help='random number generator seed')
-	parser.add_argument('-rs', '--randomsampling', default=False, action="store_true", help='sample optimal solutions uniformly at random')
-	parser.add_argument('-mx', '--maxprob', default=False, action="store_true", help='compute highest-probability solution')
-	parser.add_argument('-info', '--info', default=False, action="store_true", help='write information file')
-	parser.add_argument('--version', action='version', version='%(prog)s 1.1')
-	args = parser.parse_args()
+	# read argparse
+	global args
+	args = parse_arguments()
 
-	read_parser_args(args)
+	# initialize input_tree, hosts, score, solution_count
 	input_tree = initialize_tree(args.INPUT_TREE_FILE)
 	initialize_leaf_nodes(input_tree)
 	initialize_internal_nodes(input_tree)
-	input_tree.root.name = choose_root_host(input_tree.root)
-	if args.randomsampling:
-		choose_internal_node_host(input_tree)
+
+	# label internal nodes
+	labeled_trees = get_labeled_trees(input_tree)
+
+	# create transmission edges and counts from labeled trees
+	# create output files
+	if not args.times:
+		# old TNet output format
+		transmission_edges = get_transmission_edges(labeled_trees[0])
+		write_transmission_edges(args.OUTPUT_FILE, labeled_trees[0].root.name, transmission_edges)
 	else:
-		choose_internal_node_host_with_bias(input_tree)
+		# summary output
+		edge_count = get_transmission_edge_count(labeled_trees)
+		write_transmission_edges_summary(edge_count)
 
-	transmission_edges = get_transmission_edges(input_tree)
-	write_transmission_edges(args.OUTPUT_FILE, input_tree.root.name, transmission_edges)
+	# create optional output files
+	if args.labeledtrees:
+		Phylo.write(labeled_trees, args.OUTPUT_FILE + '.tree', 'newick')
 
-	if args.info:
-		write_info_file(args.OUTPUT_FILE, input_tree)
-
-	print('The minimum parsimony cost is:', min(score[input_tree.root]), 'with root:', input_tree.root.name)
-
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+	main()
