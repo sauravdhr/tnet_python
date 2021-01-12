@@ -289,4 +289,5 @@ def main():
 		Phylo.write(labeled_trees, args.OUTPUT_FILE + '.tree', 'newick')
 
 if __name__ == "__main__":
+	sys.setrecursionlimit(10000)
 	main()
