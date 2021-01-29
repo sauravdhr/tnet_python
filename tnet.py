@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from Bio import Phylo
 import numpy as np
 import copy, sys, os
-import argparse
+import argparse, operator
 
 # Global variables
 args = None
@@ -117,7 +117,6 @@ def get_host_from_count(count):
 				count[i] = 0
 
 	probs = [float(i)/sum(count) for i in count]
-	np.random.seed(args.seed)
 	ch = np.random.choice(len(probs), p = probs)
 	return hosts[ch]
 
@@ -243,6 +242,9 @@ def write_transmission_edges(file, source, edges):
 def write_transmission_edges_summary(edge_count):
 	summary = open(args.OUTPUT_FILE, 'w+')
 
+	# sort the edges according to their count
+	edge_count = dict(sorted(edge_count.items(), key=operator.itemgetter(1), reverse=True))
+
 	for edge, count in edge_count.items():
 		summary.write('{}\t{}\n'.format(edge, count))
 
@@ -271,6 +273,7 @@ def main():
 	initialize_internal_nodes(input_tree)
 
 	# label internal nodes
+	np.random.seed(args.seed)
 	labeled_trees = get_labeled_trees(input_tree)
 
 	# create transmission edges and counts from labeled trees
@@ -289,5 +292,5 @@ def main():
 		Phylo.write(labeled_trees, args.OUTPUT_FILE + '.tree', 'newick')
 
 if __name__ == "__main__":
-	sys.setrecursionlimit(10000)
+	sys.setrecursionlimit(100000)
 	main()
